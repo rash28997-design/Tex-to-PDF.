@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tex to PDF Converter</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- jsPDF Library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    
+    <!-- Firebase SDKs (Compat version for lightweight real-time database sync) -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+    
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #f9fafb; margin: 0; padding: 0; }
+        .editor-container { background: #ffffff; min-height: 350px; display: flex; flex-direction: column; }
+        #rich-editor {
+            min-height: 280px;
+            padding: 16px;
+            outline: none;
+            overflow-y: auto;
+            color: #1f2937;
+            font-size: 15px;
+            line-height: 1.6;
+            word-break: break-word;
+        }
+        #rich-editor:empty:before {
+            content: attr(data-placeholder);
+            color: #9ca3af;
+            pointer-events: none;
+            display: block;
+        }
+        .toolbar-btn {
+            padding: 6px 10px;
+            border-radius: 6px;
+            color: #374151;
+            font-size: 14px;
+            transition: all 0.2s;
+            background: transparent;
+            border: none;
+            cursor: pointer;
+        }
+        .toolbar-btn:hover {
+            background-color: #e5e7eb;
+            color: #111827;
+        }
+        .toolbar-select {
+            padding: 4px 8px;
+            border-radius: 6px;
+            border: 1px solid #d1d5db;
+            font-size: 13px;
+            color: #374151;
+            outline: none;
+            background-color: #ffffff;
+        }
+        /* Custom Animated Toast Notification */
+        #custom-toast {
+            visibility: hidden;
+            opacity: 0;
+            transform: translateY(-20px);
+            transition: all 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+            z-index: 99999;
+        }
+        #custom-toast.show {
+            visibility: visible;
+            opacity: 1;
+            transform: translateY(0);
+        }
+    </style>
+</head>
+<body class="bg-[#F9FAFB] text-gray-800">
+
+    <!-- Custom Animated Toast Notification Popup -->
+    <div id="custom-toast" class="fixed top-5 right-5 bg-gray-900 text-white px-5 py-3 rounded-xl shadow-2xl flex items-center gap-3 text-sm font-medium">
+        <i id="toast-icon" class="fa-solid fa-circle-check text-green-400 text-lg"></i>
+        <span id="toast-message">Notification message here</span>
+    </div>
+
+    <!-- Header Navigation -->
+    <nav class="bg-white border-b border-gray-200">
+        <div class="max-w-7xl mx-auto px-4">
+            <div class="flex justify-between h-16">
+                <div class="flex items-center">
+                    <a href="#" class="flex items-center gap-2">
+                        <img src="https://i.ibb.co/r2VDVvrK/IMG-20261107-WA2096.jpg" alt="logo" class="w-8 h-8 rounded object-cover">
+                        <span class="font-bold text-xl text-gray-900">Tex to PDF</span>
+                    </a>
+                </div>
+                <div class="hidden lg:flex items-center gap-6 text-sm font-semibold text-gray-600">
+                    <a href="#" class="text-gray-900">Text To PDF</a>
+                    <a href="#" class="hover:text-gray-900">Invert Image</a>
+                    <a href="#" class="hover:text-gray-900">Image To Excel</a>
+                    <a href="#" class="hover:text-gray-900">PDF To Excel</a>
+                    <a href="#" class="hover:text-gray-900">Pricing</a>
+                    <div class="flex items-center gap-2 ml-4">
+                        <a href="#" class="px-3 py-1.5 border border-gray-300 rounded-lg text-gray-900 hover:bg-gray-50">Login</a>
+                        <a href="#" class="px-3 py-1.5 bg-gray-900 text-white rounded-lg hover:bg-gray-800">Register</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Section -->
+    <main class="max-w-[1120px] mx-auto px-4 py-8">
+        <h1 class="text-3xl font-bold text-center text-gray-900 mb-6">Tex to PDF Converter</h1>
+        
+        <!-- Editor Box -->
+        <div class="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden mb-6">
+            <div class="editor-container">
+                
+                <!-- Styling Toolbar -->
+                <div class="flex flex-wrap items-center gap-1.5 p-3 border-b border-gray-200 bg-gray-50">
+                    <button type="button" class="toolbar-btn" onclick="execCmd('undo')" title="Undo"><i class="fa-solid fa-rotate-left"></i></button>
+                    <button type="button" class="toolbar-btn" onclick="execCmd('redo')" title="Redo"><i class="fa-solid fa-rotate-right"></i></button>
+                    <span class="w-[1px] h-5 bg-gray-300 mx-1"></span>
+                    
+                    <select class="toolbar-select" onchange="execCmd('formatBlock', this.value)">
+                        <option value="P">Paragraph</option>
+                        <option value="H1">Heading 1</option>
+                        <option value="H2">Heading 2</option>
+                        <option value="H3">Heading 3</option>
+                    </select>
+
+                    <select class="toolbar-select" onchange="execCmd('fontSize', this.value)">
+                        <option value="3">Normal</option>
+                        <option value="1">Small</option>
+                        <option value="4">Large</option>
+                        <option value="6">Huge</option>
+                    </select>
+                    <span class="w-[1px] h-5 bg-gray-300 mx-1"></span>
+
+                    <button type="button" class="toolbar-btn" onclick="execCmd('bold')" title="Bold"><i class="fa-solid fa-bold"></i></button>
+                    <button type="button" class="toolbar-btn" onclick="execCmd('italic')" title="Italic"><i class="fa-solid fa-italic"></i></button>
+                    <button type="button" class="toolbar-btn" onclick="execCmd('underline')" title="Underline"><i class="fa-solid fa-underline"></i></button>
+                    <button type="button" class="toolbar-btn" onclick="execCmd('strikeThrough')" title="Strikethrough"><i class="fa-solid fa-strikethrough"></i></button>
+                    <span class="w-[1px] h-5 bg-gray-300 mx-1"></span>
+
+                    <button type="button" class="toolbar-btn" onclick="execCmd('justifyLeft')" title="Align Left"><i class="fa-solid fa-align-left"></i></button>
+                    <button type="button" class="toolbar-btn" onclick="execCmd('justifyCenter')" title="Align Center"><i class="fa-solid fa-align-center"></i></button>
+                    <button type="button" class="toolbar-btn" onclick="execCmd('justifyRight')" title="Align Right"><i class="fa-solid fa-align-right"></i></button>
+                    <span class="w-[1px] h-5 bg-gray-300 mx-1"></span>
+
+                    <button type="button" class="toolbar-btn text-red-600 hover:bg-red-50" onclick="clearEditor()" title="Clear Text"><i class="fa-solid fa-trash-can"></i> Clear</button>
+                </div>
+
+                <!-- Writing Field -->
+                <div id="rich-editor" contenteditable="true" data-placeholder="Enter or paste text here..." oninput="syncTextToFirebase()"></div>
+
+                <!-- Bottom Stats -->
+                <div class="flex justify-between items-center px-4 py-2.5 border-t border-gray-200 bg-gray-50 text-xs text-gray-500">
+                    <p class="hidden sm:block">🔒 100% safe & secure process. We never store, sell, or share your data.</p>
+                    <div class="flex items-center gap-4 ml-auto font-medium">
+                        <p>Words: <span id="words" class="text-gray-900 font-bold">0</span></p>
+                        <span class="h-3 w-[1px] bg-gray-300"></span>
+                        <p>Characters: <span id="pages" class="text-gray-900 font-bold">0</span></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Control Buttons -->
+        <div class="flex flex-wrap items-center justify-between gap-4 bg-white p-4 rounded-xl border border-gray-200 shadow-sm mb-8">
+            <div class="flex items-center gap-3">
+                <label for="txt-upload" class="px-5 py-2.5 bg-white border border-gray-300 text-gray-800 rounded-lg font-semibold text-sm hover:bg-gray-50 cursor-pointer shadow-sm flex items-center gap-2">
+                    <i class="fa-solid fa-upload text-gray-500"></i> Upload TXT
+                </label>
+                <input type="file" id="txt-upload" accept=".txt,.doc,.docx" class="hidden" onchange="handleFileUpload(event)">
+            </div>
+
+            <div class="flex items-center gap-3">
+                <button type="button" onclick="triggerRemoteDownload()" class="px-6 py-2.5 bg-gray-900 text-white rounded-lg font-semibold text-sm hover:bg-gray-800 shadow-sm flex items-center gap-2">
+                    <i class="fa-solid fa-file-pdf text-red-400"></i> Download PDF
+                </button>
+            </div>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-white border-t border-gray-200 py-6 text-center text-sm text-gray-500">
+        <p>&copy; Copyright 2026 <strong>Tex to PDF</strong>. All rights reserved.</p>
+        <p class="mt-2 text-green-600 font-semibold"><a href="https://wa.me/8801577783621" target="_blank">Developer by Nur</a></p>
+    </footer>
+
+    <!-- Firebase & Sync Logic Script -->
+    <script>
+        // Your Firebase Configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyDTOecAPjfq4JE_cZ8QQz4xhZwNF6AtWoY",
+            authDomain: "appbazar-a4a99.firebaseapp.com",
+            projectId: "appbazar-a4a99",
+            storageBucket: "appbazar-a4a99.firebasestorage.app",
+            messagingSenderId: "817467730729",
+            appId: "1:817467730729:web:6cd6b62f74304c191e2538",
+            measurementId: "G-Q6BNEX4CLV",
+            databaseURL: "https://appbazar-a4a99-default-rtdb.firebaseio.com" // Realtime Database URL added
+        };
+
+        // Initialize Firebase
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+
+        const editor = document.getElementById('rich-editor');
+        let isRemoteUpdate = false; // Prevents infinite sync loops
+
+        // Toast Notification
+        function showToast(message, isError = false) {
+            const toast = document.getElementById('custom-toast');
+            const msgSpan = document.getElementById('toast-message');
+            const icon = document.getElementById('toast-icon');
+
+            msgSpan.innerText = message;
+            if (isError) {
+                icon.className = "fa-solid fa-circle-exclamation text-red-400 text-lg";
+            } else {
+                icon.className = "fa-solid fa-circle-check text-green-400 text-lg";
+            }
+
+            toast.classList.add('show');
+            setTimeout(() => {
+                toast.classList.remove('show');
+            }, 3000);
+        }
+
+        function updateStats() {
+            const text = editor.innerText.trim();
+            const words = text ? text.split(/\s+/).length : 0;
+            const chars = text.length;
+
+            document.getElementById('words').innerText = words;
+            document.getElementById('pages').innerText = chars;
+        }
+
+        // 1. Sync Typing from App/Browser to Firebase Realtime Database
+        function syncTextToFirebase() {
+            if (isRemoteUpdate) return; // Ignore if update came from database
+
+            updateStats();
+            const content = editor.innerHTML;
+            db.ref('session/content').set(content);
+        }
+
+        // Listen to Firebase Realtime Database changes (Keeps browser and app in absolute sync)
+        db.ref('session/content').on('value', (snapshot) => {
+            const remoteContent = snapshot.val();
+            if (remoteContent !== null && remoteContent !== editor.innerHTML) {
+                isRemoteUpdate = true;
+                editor.innerHTML = remoteContent;
+                updateStats();
+                isRemoteUpdate = false;
+            }
+        });
+
+        // Listen to Download Commands from Firebase (When App clicks download, browser triggers download automatically)
+        db.ref('session/downloadTrigger').on('value', (snapshot) => {
+            if (snapshot.val() === true) {
+                generatePDFDirect();
+                // Reset trigger after downloading
+                db.ref('session/downloadTrigger').set(false);
+            }
+        });
+
+        function execCmd(command, value = null) {
+            document.execCommand(command, false, value);
+            editor.focus();
+            syncTextToFirebase();
+        }
+
+        function clearEditor() {
+            editor.innerHTML = '';
+            syncTextToFirebase();
+            showToast("Editor cleared successfully!");
+        }
+
+        function handleFileUpload(event) {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    editor.innerText = e.target.result;
+                    syncTextToFirebase();
+                    showToast("TXT file uploaded successfully!");
+                };
+                reader.readAsText(file);
+            }
+        }
+
+        // 2. When Download Button is clicked in App or Browser
+        function triggerRemoteDownload() {
+            const text = editor.innerText.trim();
+            if (!text) {
+                showToast("Please write text before downloading!", true);
+                return;
+            }
+
+            showToast("Syncing and generating PDF...");
+            // Set trigger in Firebase so both App and Browser know download is requested
+            db.ref('session/downloadTrigger').set(true);
+            generatePDFDirect();
+        }
+
+        // 3. Core PDF Generator (Base64 Data URI for 100% Mobile & Browser compatibility)
+        function generatePDFDirect() {
+            const text = editor.innerText.trim();
+            if (!text) return;
+
+            try {
+                const { jsPDF } = window.jspdf;
+                const doc = new jsPDF({
+                    orientation: 'p',
+                    unit: 'mm',
+                    format: 'a4'
+                });
+
+                const margin = 15;
+                const pageWidth = 180; 
+                const pageHeight = 280; 
+                let cursorY = 20;
+
+                doc.setFont("helvetica", "normal");
+                doc.setFontSize(12);
+                doc.setTextColor(31, 41, 55);
+
+                const lines = doc.splitTextToSize(text, pageWidth);
+
+                for (let i = 0; i < lines.length; i++) {
+                    if (cursorY > pageHeight) {
+                        doc.addPage();
+                        cursorY = 20;
+                    }
+                    doc.text(lines[i], margin, cursorY);
+                    cursorY += 7;
+                }
+
+                const pdfDataUri = doc.output('datauristring');
+
+                const downloadLink = document.createElement('a');
+                downloadLink.href = pdfDataUri;
+                downloadLink.download = 'Tex-to-PDF.pdf';
+                downloadLink.target = '_blank';
+                document.body.appendChild(downloadLink);
+                downloadLink.click();
+                document.body.removeChild(downloadLink);
+
+                showToast("PDF downloaded successfully!");
+
+            } catch (err) {
+                console.error("PDF Download error:", err);
+                showToast("Failed to generate PDF.", true);
+            }
+        }
+    </script>
+</body>
+  </html>
+          
